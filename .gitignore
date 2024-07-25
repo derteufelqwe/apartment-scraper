@@ -1,5 +1,7 @@
 .idea
 node_modules
+venv
+results.json
 
 # Output
 .output

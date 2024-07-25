@@ -1,0 +1,25 @@
+urls:
+  haus_und_grund: "https://haus-und-grund-ostsee.de/luebeck/fuer-mieter/immobilien-mieten/#/list{}"
+  sven_oldoerp: "https://www.oldoerp-immobilien.de/mietangebotetest.html#filter=.geo-ort-luebeck"
+  immowelt: "https://www.immowelt.de/classified-search?distributionTypes=Rent&estateTypes=Apartment&locations=AD08DE3&numberOfRoomsMin=2&priceMax=1300&projectTypes=New_Build,Stock&spaceMin=50&page={}"
+  immonet: "https://www.immonet.de/classified-search?distributionTypes=Rent&estateTypes=Apartment&locations=AD08DE3&numberOfRoomsMin=2&priceMax=1000&spaceMin=50&order=DateDesc&page={}"
+
+api-data:
+  meine_stadt:
+    location: luebeck
+    lat: 53.8696
+    lng: 10.6876
+    page: 1
+    pageSize: 100
+    sr: 20
+    sort: distance
+    etype: 1
+    esr: 2
+    eqid: [ ]
+    furnid: 0
+    epos: [ ]
+    ecat: [ ]
+    primi: 0
+    prima: 1200
+    flmi: 40
+    flma: 0

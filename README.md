@@ -1,38 +1,19 @@
-# create-svelte
+# Apartment Scraper
+This is a small utility, which helps you find new apartments in your area.
+It scrapes various websites for their entries, aggregates them and presents them on a small SvelteKit website.
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/main/packages/create-svelte).
+Currently, the following websites are supported:
+- [Haus und Grund](https://haus-und-grund-ostsee.de/luebeck/fuer-mieter/immobilien-mieten/#/list1)
+- [Sven Oldörp](https://www.oldoerp-immobilien.de/mietangebotetest.html#filter=.page1)
+- [Immowelt](https://www.immowelt.de)
+- [Immonet](https://www.immonet.de)
+- [MeineStadt](https://www.meinestadt.de/luebeck/immobilien/wohnungen)
 
-## Creating a project
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Run locally
+1. 
 
-```bash
-# create a new project in the current directory
-npm create svelte@latest
+## Modify for your location
 
-# create a new project in my-app
-npm create svelte@latest my-app
-```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+## Add new scraper
