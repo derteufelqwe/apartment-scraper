@@ -34,7 +34,7 @@ export async function GET({ url, fetch }) {
         filters.push((e: SmallEntry) => providers.split(',').includes(e.provider));
     }
 
-    const request = await fetch('results.json')
+    const request = await fetch('http://' + url.host + '/results.json')
     const response: SmallEntry[] = await request.json()
 
     let filteredData = response;

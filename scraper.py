@@ -66,17 +66,17 @@ class SmallEntry:
 
 class BaseSeleniumProvider(ABC):
     PROVIDER_NAME = ''
+    MUST_FORMAT_PAGENUM = True
 
-    def __init__(self, browser: WebDriver, config: dict):
+    def __init__(self, browser: WebDriver, raw_url: str):
         self.browser = browser
-        self.config = config
+        self.raw_url = raw_url
         self.page_number = 1
         self.wait = WebDriverWait(browser, 5)
 
     @property
-    @abstractmethod
     def url(self):
-        pass
+        return self.raw_url.format(self.page_number)
 
     @abstractmethod
     def page_is_empty(self) -> bool:
@@ -105,8 +105,8 @@ class BaseSeleniumProvider(ABC):
 class BaseAPIProvider(ABC):
     PROVIDER_NAME = ''
 
-    def __init__(self, config: dict):
-        self.config = config
+    def __init__(self, options):
+        self.options = options
 
     @abstractmethod
     def find_entries(self) -> List[SmallEntry]:
@@ -118,10 +118,6 @@ class BaseAPIProvider(ABC):
 
 class HuGSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'HausUndGrund'
-
-    @property
-    def url(self):
-        return self.config['urls']['haus_und_grund'].format(self.page_number)
 
     def page_is_empty(self) -> bool:
         return len(self.browser.find_elements(By.CSS_SELECTOR, 'div.hm_listbox')) == 0
@@ -172,10 +168,6 @@ class HuGSeleniumProvider(BaseSeleniumProvider):
 class SOSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'SvenOldoerp'
 
-    @property
-    def url(self):
-        return self.config['urls']['sven_oldoerp'].format(self.page_number)
-
     def page_is_empty(self) -> bool:
         return self.page_number > 1
 
@@ -213,7 +205,8 @@ class SOSeleniumProvider(BaseSeleniumProvider):
             if size := self.find_if_available(element,
                                               "div[@class='content objectDescr']//li[div[@class='label' and text()='Wohnfläche']]/div[@class='value']"):
                 size = re.findall(r'(\d+(?:\.\d+)?)', size.replace('.', '').replace(',', '.'))[0]
-            address = self.find_if_available(element,"div[@class='content objectDescr']//li[div[@class='label' and text()='Lage']]/div[@class='value']")
+            address = self.find_if_available(element,
+                                             "div[@class='content objectDescr']//li[div[@class='label' and text()='Lage']]/div[@class='value']")
             rooms = None
             if rooms_search := re.findall(r'(\d+)[- ](?:Zimmer|Zi)', title):
                 rooms = rooms_search[0]
@@ -237,13 +230,9 @@ class SOSeleniumProvider(BaseSeleniumProvider):
 class ImmoweltSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'Immowelt'
 
-    def __init__(self, browser: WebDriver, config: dict):
-        super().__init__(browser, config)
+    def __init__(self, browser: WebDriver, raw_url: str):
+        super().__init__(browser, raw_url)
         self._is_empty = False
-
-    @property
-    def url(self):
-        return self.config['urls']['immowelt'].format(self.page_number)
 
     def page_is_empty(self) -> bool:
         if not self._is_empty:
@@ -308,13 +297,9 @@ class ImmoweltSeleniumProvider(BaseSeleniumProvider):
 class ImmonetSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'Immonet'
 
-    def __init__(self, browser: WebDriver, config: dict):
-        super().__init__(browser, config)
+    def __init__(self, browser: WebDriver, raw_url: str):
+        super().__init__(browser, raw_url)
         self._is_empty = False
-
-    @property
-    def url(self):
-        return self.config['urls']['immonet'].format(self.page_number)
 
     def page_is_empty(self) -> bool:
         if not self._is_empty:
@@ -379,8 +364,8 @@ class ImmonetSeleniumProvider(BaseSeleniumProvider):
 class MeineStadtAPIProvider(BaseAPIProvider):
     PROVIDER_NAME = 'MeineStadt'
 
-    def __init__(self, config: dict):
-        super().__init__(config)
+    def __init__(self, options):
+        super().__init__(options)
         self._headers1 = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8',
@@ -428,7 +413,25 @@ class MeineStadtAPIProvider(BaseAPIProvider):
 
             r2 = session.post('https://www.meinestadt.de/_re-service/get-items', headers=self._headers2,
                               allow_redirects=True,
-                              json=self.config['api-data']['meine_stadt'],
+                              json={
+                                  "location": "empty",
+                                  "lat": self.options['latitude'],
+                                  "lng": self.options['longitude'],
+                                  "page": 1,
+                                  "pageSize": 200,
+                                  "sr": self.options['search_radius'],
+                                  "sort": "distance",
+                                  "etype": 1,
+                                  "esr": self.options['min_rooms'],
+                                  "eqid": [],
+                                  "furnid": 0,
+                                  "epos": [],
+                                  "ecat": [],
+                                  "primi": 0,
+                                  "prima": self.options['max_price'],
+                                  "flmi": self.options['min_size'],
+                                  "flma": 0
+                              }
                               )
 
             if r2.status_code != 200:
@@ -451,7 +454,8 @@ class MeineStadtAPIProvider(BaseAPIProvider):
                 price=float(item['priceRaw']),
                 size=float(item['livingAreaRaw']),
                 rooms=float(item['rooms']),
-                address=(item.get('street', '') or '') + ' ' + (item.get('postcode', '') or '') + " " + (item.get('city', '') or ''),
+                address=(item.get('street', '') or '') + ' ' + (item.get('postcode', '') or '') + " " + (
+                            item.get('city', '') or ''),
                 image=image,
             ))
 
@@ -479,24 +483,29 @@ def process_provider(browser: WebDriver, provider: BaseSeleniumProvider) -> List
     return results
 
 
-def run_scrapers(browser: WebDriver, output_file: str, config: dict, selenium_providers: list, api_providers: list):
+def run_scrapers(browser: WebDriver, output_file: str, selenium_providers: list, api_providers: list):
     results = list()
 
-    for provider, skip in selenium_providers:
+    # Run scrapers
+    for provider_class, skip, urls in selenium_providers:
         if skip:
-            print(f'Skipping provider {provider}...')
+            print(f'Skipping provider {provider_class.__name__}...')
             continue
 
-        print(f'Running provider {provider}...')
-        results.extend(process_provider(browser, provider))
+        for i, url in enumerate(urls):
+            print(f'Running provider {provider_class.__name__} on URL {i + 1}/{len(urls)}...')
 
-    for provider, skip in api_providers:
+            results.extend(process_provider(browser, provider_class(browser, url)))
+
+    # Run API fetchers
+    for provider_class, skip, options_list in api_providers:
         if skip:
-            print(f'Skipping provider {provider}...')
+            print(f'Skipping API provider {provider_class.__name__}...')
             continue
 
-        print(f'Running provider {provider}...')
-        results.extend(provider.find_entries())
+        for i, options in enumerate(options_list):
+            print(f'Running provider {provider_class.__name__}...')
+            results.extend(provider_class(options).find_entries())
 
     with open(output_file, 'w', encoding='UTF-8') as file:
         json.dump([r.to_json() for r in results], file, indent=2, ensure_ascii=False)
@@ -513,17 +522,17 @@ def main(args):
         config = yaml.safe_load(file)
 
     selenium_providers = [
-        (HuGSeleniumProvider(browser, config), args.no_hug),
-        (SOSeleniumProvider(browser, config), args.no_sod),
-        (ImmoweltSeleniumProvider(browser, config), args.no_iw),
-        (ImmonetSeleniumProvider(browser, config), args.no_in),
+        # (HuGSeleniumProvider, args.no_hug, config['urls']['haus_und_grund']),
+        # (SOSeleniumProvider, args.no_sod, config['urls']['sven_oldoerp']),
+        # (ImmoweltSeleniumProvider, args.no_iw, config['urls']['immowelt']),
+        # (ImmonetSeleniumProvider, args.no_in, config['urls']['immonet']),
     ]
     api_providers = [
-        (MeineStadtAPIProvider(config), args.no_ms),
+        (MeineStadtAPIProvider, args.no_ms, config['api-data']['meine_stadt']),
     ]
 
     try:
-        run_scrapers(browser, args.output, config, selenium_providers, api_providers)
+        run_scrapers(browser, args.output, selenium_providers, api_providers)
     finally:
         browser.quit()
 
