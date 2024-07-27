@@ -1,18 +1,57 @@
-urls:
+scrapers:
   haus_und_grund:
-    - "https://haus-und-grund-ostsee.de/luebeck/fuer-mieter/immobilien-mieten/#/list{}"
+    - empty:
   sven_oldoerp:
-    - "https://www.oldoerp-immobilien.de/mietangebotetest.html#filter=.geo-ort-luebeck"
+    - location: "luebeck"
+    - location: "bad-schwartau"
   immowelt:
-    - "https://www.immowelt.de/classified-search?distributionTypes=Rent&estateTypes=Apartment&locations=AD08DE3&numberOfRoomsMin=2&priceMax=1300&projectTypes=New_Build,Stock&spaceMin=50&page={}"
+    - location: "luebeck-hansestadt"
+      search_radius: 10
+      price_min: null
+      price_max: 1200
+      size_min: 40
+      size_max: null
+      rooms_min: 2
+      rooms_max: null
+    - location: "bad-schwartau"
+      search_radius: 10
+      price_min: null
+      price_max: 1200
+      size_min: 40
+      size_max: null
+      rooms_min: 2
+      rooms_max: null
   immonet:
-    - "https://www.immonet.de/classified-search?distributionTypes=Rent&estateTypes=Apartment&locations=AD08DE3&numberOfRoomsMin=2&priceMax=1000&spaceMin=50&order=DateDesc&page={}"
+    # Lübeck
+    - location: "AD08DE3"
+      price_min: null
+      price_max: 1200
+      size_min: 60
+      size_max: null
+      rooms_min: 2
+      rooms_max: null
+    # Bad Schwartau
+    - location: "AD08DE388"
+      price_min: null
+      price_max: 1200
+      size_min: 60
+      size_max: null
+      rooms_min: 2
+      rooms_max: null
 
-api-data:
+apis:
   meine_stadt:
+    # Lübeck
     - latitude: 53.8696
       longitude: 10.6876
       search_radius: 20
+      max_price: 1200
+      min_size: 40
+      min_rooms: 2
+    # Bad Schwartau
+    - latitude: 53.9211
+      longitude: 10.6799
+      search_radius: 10
       max_price: 1200
       min_size: 40
       min_rooms: 2

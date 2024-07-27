@@ -7,6 +7,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import List, Optional
 import requests
+from fake_useragent import UserAgent
+import undetected_chromedriver as uc
 
 import selenium
 import yaml
@@ -18,6 +20,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+
+USER_AGENT = UserAgent()
 
 
 class SmallEntry:
@@ -68,15 +73,16 @@ class BaseSeleniumProvider(ABC):
     PROVIDER_NAME = ''
     MUST_FORMAT_PAGENUM = True
 
-    def __init__(self, browser: WebDriver, raw_url: str):
+    def __init__(self, browser: WebDriver, options: dict):
         self.browser = browser
-        self.raw_url = raw_url
+        self.options = options
         self.page_number = 1
         self.wait = WebDriverWait(browser, 5)
 
     @property
+    @abstractmethod
     def url(self):
-        return self.raw_url.format(self.page_number)
+        pass
 
     @abstractmethod
     def page_is_empty(self) -> bool:
@@ -118,6 +124,11 @@ class BaseAPIProvider(ABC):
 
 class HuGSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'HausUndGrund'
+
+    @property
+    def url(self):
+        return f"https://haus-und-grund-ostsee.de/luebeck/fuer-mieter/immobilien-mieten/#/list{self.page_number}"
+
 
     def page_is_empty(self) -> bool:
         return len(self.browser.find_elements(By.CSS_SELECTOR, 'div.hm_listbox')) == 0
@@ -167,6 +178,15 @@ class HuGSeleniumProvider(BaseSeleniumProvider):
 
 class SOSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'SvenOldoerp'
+
+    @property
+    def url(self):
+        location = self.options['location']
+        location_filter = ''
+        if location:
+            location_filter = f'#filter=.geo-ort-{location}'
+
+        return f"https://www.oldoerp-immobilien.de/mietangebotetest.html{location_filter}"
 
     def page_is_empty(self) -> bool:
         return self.page_number > 1
@@ -229,15 +249,40 @@ class SOSeleniumProvider(BaseSeleniumProvider):
 
 class ImmoweltSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'Immowelt'
+    ELEMENTS_XPATH = "//div[@class[starts-with(., 'SearchList-')]]/div[@class[starts-with(., 'EstateItem-')]]"
 
-    def __init__(self, browser: WebDriver, raw_url: str):
-        super().__init__(browser, raw_url)
+    def __init__(self, browser: WebDriver, options: dict):
+        super().__init__(browser, options)
         self._is_empty = False
+
+    @property
+    def url(self):
+        location = self.options['location']
+        search_radius = self.options['search_radius']
+        price_min = self.options['price_min']
+        price_max = self.options['price_max']
+        size_min = self.options['size_min']
+        size_max = self.options['size_max']
+        rooms_min = self.options['rooms_min']
+        rooms_max = self.options['rooms_max']
+
+        parameters = [
+            f'r={search_radius}' if search_radius is not None else None,
+            f'pmi={price_min}' if price_min is not None else None,
+            f'pma={price_max}' if price_max is not None else None,
+            f'ami={size_min}' if size_min is not None else None,
+            f'ama={size_max}' if size_max is not None else None,
+            f'rmi={rooms_min}' if rooms_min is not None else None,
+            f'rma={rooms_max}' if rooms_max is not None else None,
+        ]
+
+        query_str = '&'.join([p for p in parameters if p is not None]) + f'&sd=DESC&sf=RELEVANCE&sp={self.page_number}'
+
+        return f'https://www.immowelt.de/suche/{location}/wohnungen/mieten?{query_str}'
 
     def page_is_empty(self) -> bool:
         if not self._is_empty:
-            self._is_empty = len(self.browser.find_elements(By.XPATH,
-                                                            '//div[@data-testid="serp-enlargementlist-testid"]/div/div[contains(text(), "Weitere Ergebnisse in der Nähe")]')) > 0
+            self._is_empty = len(self.browser.find_elements(By.XPATH,self.ELEMENTS_XPATH)) > 0
             return False
 
         return True
@@ -248,7 +293,7 @@ class ImmoweltSeleniumProvider(BaseSeleniumProvider):
             return True
 
         try:
-            self.wait.until(EC.presence_of_element_located((By.XPATH, '//div/div[@data-testid="serp-card-testid"]')))
+            self.wait.until(EC.presence_of_element_located((By.XPATH, self.ELEMENTS_XPATH)))
 
             if shadow_parent := self.browser.find_elements(By.XPATH, '//div[@id="usercentrics-root"]'):
                 shadow_parent = shadow_parent[0]
@@ -265,26 +310,30 @@ class ImmoweltSeleniumProvider(BaseSeleniumProvider):
 
     def find_entries(self) -> List[SmallEntry]:
         res = list()
-        elements = self.browser.find_elements(By.XPATH,
-                                              '//div[@data-testid="serp-scrollablelist-testid"]/div[@data-testid="serp-card-testid"]/div')
+        elements = self.browser.find_elements(By.XPATH,self.ELEMENTS_XPATH)
 
         for element in elements:
-            if rent := self.find_if_available(element, ".//div[@data-testid='cardmfe-price-testid']"):
-                rent = rent.strip(' \t€').replace('.', '').replace(',', '.')
-            if rooms := self.find_if_available(element, ".//div[@data-testid='cardmfe-keyfacts-testid']/div[1]"):
+            # Scroll the element into the view, so its images get loaded
+            self.browser.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});",element)
+            time.sleep(0.25)
+
+            title = self.find_if_available(element, ".//div[@class[starts-with(., 'FactsMain-')]]/*/h2")
+            if price := self.find_if_available(element, ".//div[@class[starts-with(., 'FactsMain-')]]/div[@class[starts-with(., 'KeyFacts-')]]/div[@data-test='price']"):
+                price = price.strip(' \t€').replace('.', '').replace(',', '.')
+            if rooms := self.find_if_available(element, ".//div[@class[starts-with(., 'FactsMain-')]]/div[@class[starts-with(., 'KeyFacts-')]]/div[@data-test='rooms']"):
                 rooms = re.findall(r'(\d+(?:\.\d+)?)', rooms)[0]
-            if size := self.find_if_available(element, ".//div[@data-testid='cardmfe-keyfacts-testid']/div[3]"):
-                size = size.strip(' \tm²').replace('.', '').replace(',', '.').strip()
-            address = self.find_if_available(element, ".//div[@class='css-162g046']")
-            if image := element.find_elements(By.XPATH, ".//div[@aria-roledescription='slide'][1]/img"):
+            if size := self.find_if_available(element, ".//div[@class[starts-with(., 'FactsMain-')]]/div[@class[starts-with(., 'KeyFacts-')]]/div[@data-test='area']"):
+                size = size.strip(' \tm²').replace(',', '.').strip()
+            address = self.find_if_available(element, ".//div[@class[starts-with(., 'FactsMain-')]]//span")
+            if image := element.find_elements(By.XPATH, ".//div[@class[starts-with(., 'VisualSection-')]]//picture/img"):
                 image = image[0].get_attribute('src')
             url = element.find_element(By.XPATH, './/a').get_attribute('href')
 
             res.append(SmallEntry(
                 provider=self.PROVIDER_NAME,
-                title="Wohnung zur Miete",
+                title=title,
                 url=url,
-                price=float(rent) if rent else None,
+                price=float(price) if price else None,
                 size=float(size) if size else None,
                 rooms=float(rooms) if rooms else None,
                 address=address,
@@ -297,9 +346,33 @@ class ImmoweltSeleniumProvider(BaseSeleniumProvider):
 class ImmonetSeleniumProvider(BaseSeleniumProvider):
     PROVIDER_NAME = 'Immonet'
 
-    def __init__(self, browser: WebDriver, raw_url: str):
-        super().__init__(browser, raw_url)
+    def __init__(self, browser: WebDriver, options: dict):
+        super().__init__(browser, options)
         self._is_empty = False
+
+    @property
+    def url(self):
+        location = self.options['location']
+        price_min = self.options['price_min']
+        price_max = self.options['price_max']
+        size_min = self.options['size_min']
+        size_max = self.options['size_max']
+        rooms_min = self.options['rooms_min']
+        rooms_max = self.options['rooms_max']
+
+        parameters = [
+            f'locations={location}' if location is not None else None,
+            f'priceMin={price_min}' if price_min is not None else None,
+            f'priceMax={price_max}' if price_max is not None else None,
+            f'spaceMin={size_min}' if size_min is not None else None,
+            f'spaceMax={size_max}' if size_max is not None else None,
+            f'numberOfRoomsMin={rooms_min}' if rooms_min is not None else None,
+            f'numberOfRoomsMax={rooms_max}' if rooms_max is not None else None,
+        ]
+
+        query_str = '&'.join([p for p in parameters if p is not None]) + f'&page={self.page_number}'
+
+        return f'https://www.immonet.de/classified-search?{query_str}'
 
     def page_is_empty(self) -> bool:
         if not self._is_empty:
@@ -455,7 +528,7 @@ class MeineStadtAPIProvider(BaseAPIProvider):
                 size=float(item['livingAreaRaw']),
                 rooms=float(item['rooms']),
                 address=(item.get('street', '') or '') + ' ' + (item.get('postcode', '') or '') + " " + (
-                            item.get('city', '') or ''),
+                        item.get('city', '') or ''),
                 image=image,
             ))
 
@@ -466,6 +539,7 @@ def process_provider(browser: WebDriver, provider: BaseSeleniumProvider) -> List
     results = list()
 
     while True:
+        browser.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": USER_AGENT.random})
         print(f'Opening page {provider.page_number} for {provider.PROVIDER_NAME}')
         browser.get(provider.url)
         time.sleep(1)  # Wait for browser to change
@@ -487,15 +561,15 @@ def run_scrapers(browser: WebDriver, output_file: str, selenium_providers: list,
     results = list()
 
     # Run scrapers
-    for provider_class, skip, urls in selenium_providers:
+    for provider_class, skip, options_list in selenium_providers:
         if skip:
             print(f'Skipping provider {provider_class.__name__}...')
             continue
 
-        for i, url in enumerate(urls):
-            print(f'Running provider {provider_class.__name__} on URL {i + 1}/{len(urls)}...')
+        for i, options in enumerate(options_list):
+            print(f'Running provider {provider_class.__name__} with settings {i + 1}/{len(options_list)}...')
 
-            results.extend(process_provider(browser, provider_class(browser, url)))
+            results.extend(process_provider(browser, provider_class(browser, options)))
 
     # Run API fetchers
     for provider_class, skip, options_list in api_providers:
@@ -504,7 +578,7 @@ def run_scrapers(browser: WebDriver, output_file: str, selenium_providers: list,
             continue
 
         for i, options in enumerate(options_list):
-            print(f'Running provider {provider_class.__name__}...')
+            print(f'Running provider {provider_class.__name__} with settings {i + 1}/{len(options_list)}...')
             results.extend(provider_class(options).find_entries())
 
     with open(output_file, 'w', encoding='UTF-8') as file:
@@ -514,21 +588,26 @@ def run_scrapers(browser: WebDriver, output_file: str, selenium_providers: list,
 def main(args):
     service = Service()
     options = webdriver.ChromeOptions()
-    if not args.no_headless:
-        options.add_argument('--headless=new')
+    # Selenium detection prevention: https://stackoverflow.com/questions/53039551/selenium-webdriver-modifying-navigator-webdriver-flag-to-prevent-selenium-detec/53040904#53040904
+    options.add_argument("start-maximized")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    # browser = uc.Chrome(options=options, headless=not args.no_headless, use_subprocess=False)
     browser = webdriver.Chrome(service=service, options=options)
+    browser.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
     with open(args.config, 'r', encoding='UTF-8') as file:
         config = yaml.safe_load(file)
 
     selenium_providers = [
-        # (HuGSeleniumProvider, args.no_hug, config['urls']['haus_und_grund']),
-        # (SOSeleniumProvider, args.no_sod, config['urls']['sven_oldoerp']),
-        # (ImmoweltSeleniumProvider, args.no_iw, config['urls']['immowelt']),
-        # (ImmonetSeleniumProvider, args.no_in, config['urls']['immonet']),
+        (HuGSeleniumProvider, args.no_hug, config['scrapers']['haus_und_grund']),
+        (SOSeleniumProvider, args.no_sod, config['scrapers']['sven_oldoerp']),
+        (ImmoweltSeleniumProvider, args.no_iw, config['scrapers']['immowelt']),
+        (ImmonetSeleniumProvider, args.no_in, config['scrapers']['immonet']),
     ]
     api_providers = [
-        (MeineStadtAPIProvider, args.no_ms, config['api-data']['meine_stadt']),
+        (MeineStadtAPIProvider, args.no_ms, config['apis']['meine_stadt']),
     ]
 
     try:

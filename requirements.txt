@@ -1,3 +1,6 @@
 requests
 selenium
 pyyaml
+fake-useragent
+undetected-chromedriver
+setuptools
