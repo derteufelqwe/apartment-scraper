@@ -11,7 +11,16 @@ Currently, the following websites are supported:
 
 
 ## Run locally
-1. 
+1. Download the latest build artifact and unzip it
+2. (Optional) Create a python venv using ``python -m venv venv`` and activate it using `.\venv\Scripts\activate.ps1`
+3. Install the python requirements: ``pip install -r requirements.txt``
+4. Install pnpm: ``npm install -g pnpm``
+5. Install nodejs dependencies: ``pnpm install --prod``
+6. Modify the ``scraper-config.yaml`` config file to your needs
+7. Run the scraper: ``python scraper.py``
+8. Run the webapp: ``node app``
+9. Visit ``http://localhost:3000``
+
 
 ## Modify for your location
 

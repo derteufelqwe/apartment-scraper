@@ -618,7 +618,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser('Configure the website scraper')
-    parser.add_argument('--output', '-o', type=str, default='results.json', help='The output json file')
+    parser.add_argument('--output', '-o', type=str, default='app/client/results.json', help='The output json file')
     parser.add_argument('--config', '-c', type=str, default='scraper-config.yaml', help='The scraper config file')
     parser.add_argument('--no-headless', action='store_true', default=False, help='Disable headless mode')
 
