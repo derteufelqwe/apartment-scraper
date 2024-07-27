@@ -22,9 +22,19 @@ jobs:
         run: pnpm install
       - name: "Build app"
         run: npm run build --if-present
+      - name: "Prepare artifacts folder"
+        run: |
+          mkdir app-build
+          mv build app-build/app
+          cp package.json app-build
+          cp pnpm-lock.yaml app-build
+          cp scraper.py app-build
+          cp scraper-config.yaml app-build
+          cp requirements.txt app-build
+          cp README.md app-build
 
       - name: Upload built App
         uses: actions/upload-artifact@v4
         with:
           name: apartment-scraper-app
-          path: build/
+          path: app-build/
