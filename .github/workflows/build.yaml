@@ -19,7 +19,7 @@ jobs:
       - name: "Install PNPM"
         run: npm install -g pnpm
       - name: "Install dependencies"
-        run: pnpm ci
+        run: pnpm install
       - name: "Build app"
         run: npm run build --if-present
 
