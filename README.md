@@ -23,6 +23,17 @@ Currently, the following websites are supported:
 
 
 ## Modify for your location
+The process differs for every provider.
+
+| Provider       | Instructions                                                                                                  |
+|----------------|---------------------------------------------------------------------------------------------------------------|
+| Haus und Grund | No changes are necessary                                                                                      |
+| Sven Oldörp    | Must be extracted from the URL when searching on the website                                                  |
+| Immowelt       | Must be extracted from the URL when searching on the website                                                  |
+| Immonet        | Must be extracted from the URL when searching on the website                                                  |
+| Meinestadt     | Must be extracted from the network requests on the website. <br/>The required request goes to `get-items` endpoint |
 
 
-## Add new scraper
+# Legal notice
+It's up to the user to evaluate weather web scraping is legal in its country.
+The author is not responsible for any legal problems.
